@@ -16,3 +16,7 @@ node_modules/
 watch/build/
 watch/sign/
 analysis/original/
+analysis/xiaomi-demo/
+analysis/*.zip
+android/app/libs/
+watch/src/common/generated/

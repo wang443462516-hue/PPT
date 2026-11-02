@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "prebuild": "node ../tools/generate-watch-assets.cjs",
     "build": "aiot build",
+    "prerelease": "node ../tools/generate-watch-assets.cjs",
     "release": "aiot release"
   },
   "devDependencies": {

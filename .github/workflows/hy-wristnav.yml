@@ -22,6 +22,9 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
@@ -52,7 +55,10 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Compile Vela source
         working-directory: HY_WristNav/watch
-        run: npm run build
+        run: |
+          npm run build 2>&1 | tee build.log
+          if grep -E 'ERROR:|build error' build.log; then exit 1; fi
+          test -n "$(find dist -name '*.rpk' -size +0c -print -quit)"
 
   # Installation artifacts are intentionally not exported here. A separate
   # delivery pipeline must use a persistent matching APK/RPK signing identity

@@ -1,6 +1,7 @@
 {
   "package": "com.hy.wristnav",
   "name": "HY_WristNav",
+  "icon": "/common/generated/logo.png",
   "versionName": "0.1.0",
   "versionCode": 1,
   "minPlatformVersion": 1200,
