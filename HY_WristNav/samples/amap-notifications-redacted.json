@@ -1,0 +1,22 @@
+[
+  {
+    "packageName": "com.autonavi.minimap",
+    "id": 42,
+    "postTime": 1793620800000,
+    "title": "导航中",
+    "text": "90米后左转，进入示例路",
+    "bigText": "90米后左转，进入示例路",
+    "focusParam": null,
+    "extrasKeys": ["android.title", "android.text", "android.bigText"]
+  },
+  {
+    "packageName": "com.autonavi.minimap",
+    "id": 43,
+    "postTime": 1793620805000,
+    "title": "导航中",
+    "text": "",
+    "bigText": "",
+    "focusParam": "{\"text\":\"180米后右转\",\"road\":\"示例路\"}",
+    "extrasKeys": ["android.title", "android.text", "miui.focus.param"]
+  }
+]

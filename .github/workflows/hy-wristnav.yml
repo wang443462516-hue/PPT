@@ -1,0 +1,59 @@
+name: Cloud source checks (not device acceptance)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'HY_WristNav/android/**'
+      - 'HY_WristNav/watch/**'
+      - '.github/workflows/hy-wristnav.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Install required SDK
+        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile and test Android source
+        working-directory: HY_WristNav/android
+        run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Preserve test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-results
+          path: HY_WristNav/android/app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  watch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Vela build dependencies
+        working-directory: HY_WristNav/watch
+        run: npm install --no-audit --no-fund
+      - name: Compile Vela source
+        working-directory: HY_WristNav/watch
+        run: npm run build
+
+  # Installation artifacts are intentionally not exported here. A separate
+  # delivery pipeline must use a persistent matching APK/RPK signing identity
+  # and must not ship the LoggingWatchBridge placeholder.

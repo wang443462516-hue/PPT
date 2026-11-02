@@ -1,0 +1,17 @@
+{
+  "v": 1,
+  "t": "nav_snapshot",
+  "seq": 1,
+  "ts": 1793620800000,
+  "source": "manual_demo",
+  "live": false,
+  "state": "navigating",
+  "maneuver": "left",
+  "metersToTurn": 90,
+  "road": "示例道路（DEMO）",
+  "remainingMeters": null,
+  "etaMinutes": null,
+  "speedKph": null,
+  "headingDegrees": null,
+  "parserRule": null
+}

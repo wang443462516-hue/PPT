@@ -1,0 +1,171 @@
+<template>
+  <div class="screen">
+    <text class="badge">{{ liveLabel }}</text>
+    <text class="status">{{ statusText }}</text>
+    <text class="arrow">{{ arrow }}</text>
+    <text class="distance">{{ distanceText }}</text>
+    <text class="road">{{ roadText }}</text>
+    <text class="meta">{{ etaText }}</text>
+    <text class="meta">{{ connectionText }}</text>
+    <text class="meta">{{ freshnessText }}</text>
+  </div>
+</template>
+
+<script>
+import interconnect from '@system.interconnect'
+import vibrator from '@system.vibrator'
+import brightness from '@system.brightness'
+
+const FRESHNESS_MS = 30000
+
+export default {
+  data: {
+    liveLabel: 'WAITING',
+    statusText: '等待导航',
+    arrow: '·',
+    distanceText: '--',
+    roadText: '',
+    etaText: '',
+    connectionText: '手机：连接中',
+    freshnessText: '无有效快照',
+    lastSeq: -1,
+    lastTs: 0,
+    connect: null,
+    freshnessTimer: null
+  },
+
+  onInit() {
+    // Do not force the AMOLED to stay on. Wake/screen ownership remains with
+    // the watch OS; this call only opts out of an always-on request.
+    brightness.setKeepScreenOn({
+      keepScreenOn: false,
+      success: () => console.log('[HY_WristNav] system screen timeout enabled'),
+      fail: (data, code) => console.log('[HY_WristNav] brightness unavailable', code)
+    })
+
+    this.connect = interconnect.instance()
+    this.connect.onopen = (data) => {
+      this.connectionText = '手机：已连接'
+      this.send({ v: 1, t: 'request_snapshot', seq: Date.now(), ts: Date.now(), source: 'watch' })
+      console.log('[HY_WristNav] interconnect open', JSON.stringify(data))
+    }
+    this.connect.onclose = (data) => {
+      this.connectionText = '手机：已断开'
+      this.statusText = '手机断开'
+      console.log('[HY_WristNav] interconnect close', JSON.stringify(data))
+    }
+    this.connect.onerror = (data) => {
+      this.connectionText = '手机：连接错误'
+      console.log('[HY_WristNav] interconnect error', JSON.stringify(data))
+    }
+    this.connect.onmessage = (message) => this.handleMessage(message && message.data)
+    this.connect.getReadyState({
+      success: (data) => { this.connectionText = data.status === 1 ? '手机：已连接' : '手机：已断开' },
+      fail: () => { this.connectionText = '手机：状态未知' }
+    })
+    this.freshnessTimer = setInterval(() => this.refreshFreshness(), 1000)
+  },
+
+  onShow() {
+    this.refreshFreshness()
+  },
+
+  onDestroy() {
+    if (this.freshnessTimer) clearInterval(this.freshnessTimer)
+    if (this.connect) {
+      this.connect.onmessage = null
+      this.connect.onopen = null
+      this.connect.onclose = null
+      this.connect.onerror = null
+    }
+  },
+
+  methods: {
+    send(payload) {
+      if (!this.connect) return
+      this.connect.send({
+        data: payload,
+        success: () => console.log('[HY_WristNav] send ok'),
+        fail: (data, code) => console.log('[HY_WristNav] send fail', code, data)
+      })
+    },
+
+    handleMessage(raw) {
+      let data = raw
+      if (typeof raw === 'string') {
+        try { data = JSON.parse(raw) } catch (e) {
+          console.log('[HY_WristNav] invalid JSON')
+          return
+        }
+      }
+      if (!data || !data.t) return
+      if (data.t === 'stop' || data.state === 'stop') {
+        this.reset()
+        return
+      }
+      if (data.t !== 'nav_snapshot') return
+      if (typeof data.seq === 'number' && data.seq <= this.lastSeq) return
+
+      this.lastSeq = typeof data.seq === 'number' ? data.seq : this.lastSeq
+      this.lastTs = typeof data.ts === 'number' ? data.ts : Date.now()
+      this.liveLabel = data.live === true ? 'LIVE' : 'DEMO'
+      this.statusText = data.state === 'arrive' ? '已到达目的地' : (data.state === 'no_data' ? '无法解析当前通知' : '导航中')
+      this.arrow = this.arrowFor(data.maneuver)
+      this.distanceText = this.distanceFor(data.metersToTurn)
+      this.roadText = data.road || ''
+      this.etaText = data.etaMinutes == null ? '' : '预计 ' + data.etaMinutes + ' 分钟'
+      this.refreshFreshness()
+      if (data.live === true) this.vibrate()
+      console.log('[HY_WristNav] watch_receive seq=' + this.lastSeq)
+    },
+
+    refreshFreshness() {
+      if (!this.lastTs) {
+        this.freshnessText = '无有效快照'
+        return
+      }
+      const age = Date.now() - this.lastTs
+      this.freshnessText = age > FRESHNESS_MS ? '数据过期' : '数据 ' + Math.round(age / 1000) + ' 秒前'
+      if (age > FRESHNESS_MS && this.liveLabel === 'LIVE') this.statusText = '数据过期'
+    },
+
+    reset() {
+      this.liveLabel = 'WAITING'
+      this.statusText = '等待导航'
+      this.arrow = '·'
+      this.distanceText = '--'
+      this.roadText = ''
+      this.etaText = ''
+      this.lastTs = 0
+      this.freshnessText = '无有效快照'
+    },
+
+    arrowFor(maneuver) {
+      return ({ left: '←', right: '→', straight: '↑', slight_left: '↖', slight_right: '↗', uturn: '↶', arrive: '⌾' })[maneuver] || '·'
+    },
+
+    distanceFor(meters) {
+      if (typeof meters !== 'number') return '--'
+      return meters >= 1000 ? (meters / 1000).toFixed(1) + ' km' : Math.round(meters) + ' m'
+    },
+
+    vibrate() {
+      vibrator.vibrate({
+        mode: 'short',
+        success: () => {},
+        fail: (data, code) => console.log('[HY_WristNav] vibrate fail', code)
+      })
+    }
+  }
+}
+</script>
+
+<style>
+.screen { width: 466px; height: 466px; background-color: #000000; flex-direction: column; align-items: center; justify-content: center; }
+.badge { color: #67D9FF; font-size: 24px; margin-bottom: 8px; }
+.status { color: #AAAAAA; font-size: 22px; margin-bottom: 4px; }
+.arrow { color: #FFFFFF; font-size: 120px; height: 150px; line-height: 150px; }
+.distance { color: #FFFFFF; font-size: 50px; margin-top: 6px; }
+.road { color: #FFFFFF; font-size: 25px; width: 380px; text-align: center; margin-top: 8px; }
+.meta { color: #888888; font-size: 18px; margin-top: 5px; }
+</style>
