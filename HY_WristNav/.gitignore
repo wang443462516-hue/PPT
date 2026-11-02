@@ -9,6 +9,9 @@ dist/
 *.apk
 *.rpk
 *.pem
+!tools/signing-backup-public.pem
+.private/
+delivery/
 *.pfx
 local.properties
 .npm-cache/

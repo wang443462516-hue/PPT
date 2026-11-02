@@ -26,6 +26,15 @@ android {
         }
     }
 
+    System.getenv("HY_KEYSTORE")?.let { path ->
+        signingConfigs.getByName("debug") {
+            storeFile = file(path)
+            storePassword = System.getenv("HY_KEY_PASSWORD")
+            keyAlias = "hy-wristnav"
+            keyPassword = System.getenv("HY_KEY_PASSWORD")
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
