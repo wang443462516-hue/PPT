@@ -6,6 +6,23 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AmapParserTest {
+    private fun parse(text: String, focus: String? = null) = AmapParser.parse(
+        NotificationInput("com.autonavi.minimap", 1, 1, "导航中", text, null, focus, emptyList()))
+
+    @Test fun destinationMentionIsNotArrival() {
+        assertEquals("left", parse("90米后左转 距离目的地2公里").snapshotFields?.maneuver)
+        assertNull(parse("目的地距离2公里").snapshotFields)
+    }
+
+    @Test fun decimalKilometersAndNestedFocus() {
+        assertEquals(1500, parse("1.5公里后右转").snapshotFields?.metersToTurn)
+        assertEquals("right", parse("", "{\"param_v2\":{\"title\":\"180米后右转\"}}").snapshotFields?.maneuver)
+    }
+
+    @Test fun malformedNumericFieldsStayUnknown() {
+        assertNull(parse("左转", "{\"metersToTurn\":\"bad\"}").snapshotFields?.metersToTurn)
+        assertNull(parse("距离目的地90米").snapshotFields)
+    }
     @Test fun parsesTraditionalNotification() {
         val result = AmapParser.parse(NotificationInput(
             packageName = "com.autonavi.minimap",

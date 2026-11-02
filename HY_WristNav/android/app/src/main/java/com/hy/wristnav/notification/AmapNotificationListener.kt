@@ -41,7 +41,9 @@ class AmapNotificationListener : NotificationListenerService() {
 
         NavStore.health.lastCallbackMs = System.currentTimeMillis()
         NavStore.health.lastPackage = input.packageName
-        NavStore.health.lastRedactedText = redact(listOfNotNull(title, text, bigText).joinToString(" | "))
+        NavStore.health.lastRedactedText = "id=${input.id} postTime=${input.postTime}\n" +
+            "title=${title?.length ?: 0}字符 text=${text?.length ?: 0}字符 bigText=${bigText?.length ?: 0}字符\n" +
+            "focus=${focus?.length ?: 0}字符 keys=${input.extrasKeys.joinToString(",")}\n内容默认遮蔽"
         NavStore.addLog("notification_received id=${input.id} keys=${input.extrasKeys.joinToString(",")}")
 
         val result = AmapParser.parse(input)
@@ -68,7 +70,7 @@ class AmapNotificationListener : NotificationListenerService() {
         val fields = result.snapshotFields
         val snapshot = NavSnapshot(
             seq = NavStore.nextSeq(),
-            ts = System.currentTimeMillis(),
+            ts = input.postTime,
             source = "amap_notification",
             live = true,
             state = if (fields.maneuver == "arrive") "arrive" else "navigating",

@@ -39,12 +39,17 @@ class MainActivity : Activity() {
         }
         root.addView(title)
         status = TextView(this).apply { textSize = 14f }
-        root.addView(status, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        root.addView(status, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         val buttons = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         buttons.addView(button("发送 DEMO") { sendDemo() })
-        buttons.addView(button("发送 STOP") { send(NavProtocol.stop(NavStore.nextSeq())) })
-        buttons.addView(button("请求最新快照") { send(NavProtocol.requestSnapshot(NavStore.nextSeq())) })
+        buttons.addView(button("发送 STOP") {
+            val stopped = NavSnapshot(NavStore.nextSeq(), System.currentTimeMillis(), "manual_control", false, "stop", null, null, null)
+            NavStore.setCurrent(stopped)
+            send(stopped.toJson().toString())
+        })
+        buttons.addView(button("重连手表") { WatchBridgeProvider.bridge.reconnect() })
+        buttons.addView(button("重发当前快照") { NavStore.current?.let { send(it.toJson().toString()) } })
         buttons.addView(button("打开通知监听设置") {
             startActivity(android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"))
         })
@@ -107,6 +112,7 @@ class MainActivity : Activity() {
             appendLine("最近解析失败：${NavStore.health.lastFailure ?: "--"}")
             appendLine("最近通知（脱敏）：${NavStore.health.lastRedactedText ?: "--"}")
             appendLine("通信：${NavStore.lastTransport}")
+            appendLine("手表渲染确认 seq：${NavStore.lastAck} / 最近发送：${NavStore.lastSentSeq}")
             appendLine("当前快照：${snapshot?.let { "${if (it.live) "LIVE" else "DEMO"} ${it.maneuver ?: "--"} ${it.metersToTurn ?: "--"}m" } ?: "无"}")
             appendLine("新鲜度：${age?.let { "${it}s" } ?: "--"}")
             appendLine()

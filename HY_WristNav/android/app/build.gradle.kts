@@ -35,6 +35,7 @@ android {
 }
 
 dependencies {
+    implementation(files("libs/xms-wearable-lib_1.4_release.aar"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
     testImplementation("junit:junit:4.13.2")
     // Android's local JVM stubs do not implement JSONObject.

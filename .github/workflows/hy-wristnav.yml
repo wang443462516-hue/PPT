@@ -31,6 +31,9 @@ jobs:
       - name: Install required SDK
         run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
       - name: Compile and test Android source
+        working-directory: HY_WristNav
+        run: bash tools/fetch-xiaomi-sdk.sh
+      - name: Run Android build
         working-directory: HY_WristNav/android
         run: gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
       - name: Preserve test results
@@ -53,6 +56,8 @@ jobs:
       - name: Install Vela build dependencies
         working-directory: HY_WristNav/watch
         run: npm install --no-audit --no-fund
+      - name: Watch state regression tests
+        run: node HY_WristNav/tools/test-watch.cjs
       - name: Compile Vela source
         working-directory: HY_WristNav/watch
         run: |

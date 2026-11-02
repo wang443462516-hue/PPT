@@ -18,12 +18,15 @@ data class NotificationHealth(
 
 object NavStore {
     private const val TAG = "HY_WristNav"
-    private val seq = AtomicLong(0)
+    private val seq = AtomicLong(System.currentTimeMillis())
     private val logs = CopyOnWriteArrayList<String>()
     val health = NotificationHealth()
     @Volatile var current: NavSnapshot? = null
         private set
-    @Volatile var lastTransport: String = "未接入 Xiaomi interconnect SDK"
+    @Volatile var lastSentSeq: Long = -1
+    @Volatile var lastAck: Long = -1
+    @Volatile var lastHeartbeatMs: Long = 0
+    @Volatile var lastTransport: String = "正在初始化互联"
         private set
 
     fun nextSeq(): Long = seq.incrementAndGet()

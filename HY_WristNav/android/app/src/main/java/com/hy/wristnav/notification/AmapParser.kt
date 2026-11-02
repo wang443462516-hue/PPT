@@ -31,7 +31,7 @@ data class ParsedFields(
 object AmapParser {
     private val distance = Regex("(\\d+(?:\\.\\d+)?)\\s*(公里|千米|km|KM|米|m)\\s*(?:后|以后)?")
     private val eta = Regex("(?:预计|到达|ETA)[^0-9]*(\\d{1,2}):(\\d{2})", RegexOption.IGNORE_CASE)
-    private val road = Regex("(?:进入|沿|驶入|开往)\\s*([\\u4e00-\\u9fa5A-Za-z0-9·-]{2,24}(?:路|街|大道|大街|高速|隧道|桥))")
+    private val road = Regex("(?:进入|沿|驶入|开往)\\s*([\\u4e00-\\u9fa5A-Za-z0-9·-]{1,24}(?:路|街|大道|大街|高速|隧道|桥))")
 
     fun parse(input: NotificationInput): ParseResult {
         if (input.packageName != "com.autonavi.minimap") {
@@ -47,7 +47,7 @@ object AmapParser {
             focus?.optString("text", null),
             focus?.optString("content", null),
             focus?.optString("bigText", null)
-        ).joinToString(" ").trim()
+        ).plus(focusStrings(focus)).joinToString(" ").take(16384).trim()
 
         val parsedDistance = distance.find(combined)?.let { match ->
             val value = match.groupValues[1].toDouble()
@@ -57,24 +57,16 @@ object AmapParser {
         } ?: focus?.optIntNullable("metersToTurn")
 
         val maneuver = maneuverFor(combined)
-            ?: focus?.optString("maneuver", null)?.lowercase(Locale.US)
+            ?: focus?.optString("maneuver", null)?.lowercase(Locale.US)?.takeIf {
+                it in setOf("left", "right", "straight", "slight_left", "slight_right", "uturn", "arrive")
+            }
         val roadName = focus?.optString("road", null)?.takeIf { it.isNotBlank() }
             ?: road.find(combined)?.groupValues?.getOrNull(1)
-        val etaMinutes = eta.find(combined)?.let { match ->
-            val hour = match.groupValues[1].toInt()
-            val minute = match.groupValues[2].toInt()
-            val now = java.util.Calendar.getInstance()
-            val target = java.util.Calendar.getInstance().apply {
-                set(java.util.Calendar.HOUR_OF_DAY, hour)
-                set(java.util.Calendar.MINUTE, minute)
-                set(java.util.Calendar.SECOND, 0)
-                set(java.util.Calendar.MILLISECOND, 0)
-                if (timeInMillis < now.timeInMillis) add(java.util.Calendar.DAY_OF_YEAR, 1)
-            }
-            ((target.timeInMillis - now.timeInMillis) / 60_000L).toInt()
-        } ?: focus?.optIntNullable("etaMinutes")
+        // An arrival clock time is ambiguous at midnight; do not infer a day.
+        val etaMinutes = Regex("(?:剩余|还需|预计用时)\\s*(\\d{1,3})\\s*分钟").find(combined)
+            ?.groupValues?.get(1)?.toIntOrNull() ?: focus?.optIntNullable("etaMinutes")
 
-        if (maneuver == null && parsedDistance == null) {
+        if (maneuver == null) {
             val failure = if (focusRawPresent && focus == null) "FOCUS_UNREADABLE" else "NO_NAV_FIELDS"
             return ParseResult(rule = if (focus != null) "amap_focus_unmatched" else "amap_text_unmatched", failure = failure)
         }
@@ -87,23 +79,35 @@ object AmapParser {
 
     private fun maneuverFor(text: String): String? = when {
         text.contains("掉头") || text.contains("调头") || text.contains("U型") -> "uturn"
-        text.contains("到达目的地") || text.contains("抵达目的地") || text.contains("目的地") -> "arrive"
-        text.contains("左前方") || text.contains("向左") || text.contains("靠左") -> "slight_left"
-        text.contains("右前方") || text.contains("向右") || text.contains("靠右") -> "slight_right"
+        text.contains("已到达目的地") || text.contains("已抵达目的地") -> "arrive"
+        text.contains("左前方") || text.contains("靠左") -> "slight_left"
+        text.contains("右前方") || text.contains("靠右") -> "slight_right"
         text.contains("左转") -> "left"
         text.contains("右转") -> "right"
-        text.contains("直行") || text.contains("继续") -> "straight"
+        text.contains("直行") -> "straight"
         else -> null
     }
 
     private fun parseFocus(raw: String?): JSONObject? {
         val value = raw?.trim().orEmpty()
-        if (value.isBlank() || !value.startsWith("{")) return null
+        if (value.isBlank() || value.length > 65536 || !value.startsWith("{")) return null
         return runCatching { JSONObject(value) }.getOrNull()
     }
 
     private fun JSONObject.optIntNullable(key: String): Int? = when {
         !has(key) || isNull(key) -> null
-        else -> optInt(key).takeIf { it >= 0 }
+        else -> opt(key).toString().toIntOrNull()?.takeIf { it in 0..100000 }
+    }
+
+    private fun focusStrings(value: Any?, depth: Int = 0): List<String> {
+        if (depth > 5 || value == null || value == JSONObject.NULL) return emptyList()
+        return when (value) {
+            is String -> listOf(value.take(512))
+            is JSONObject -> value.keys().asSequence().take(32).flatMap {
+                focusStrings(value.opt(it), depth + 1).asSequence()
+            }.toList()
+            is JSONArray -> (0 until minOf(32, value.length())).flatMap { focusStrings(value.opt(it), depth + 1) }
+            else -> emptyList()
+        }
     }
 }
