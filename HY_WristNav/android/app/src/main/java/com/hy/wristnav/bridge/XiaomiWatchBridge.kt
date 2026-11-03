@@ -155,9 +155,9 @@ class XiaomiWatchBridge(context: Context) : WatchBridge {
                 if (!gate.advance(attempt, Stage.REGISTERING, Stage.READY)) return@post
                 NavStore.transportReady = true
                 NavStore.setTransport("接收已注册；等待手表回应")
-                if (openWatch) openWatchApp(attempt, id)
                 if (pending == null) pending = WatchMessageHandler.handle("{\"t\":\"request_snapshot\"}")
-                flush()
+                // Opening is asynchronous. Do not send before the launch attempt completes.
+                if (openWatch) openWatchApp(attempt, id) else flush()
             }
         }.addOnFailureListener { error -> main.post {
             if (gate.matches(attempt, Stage.REGISTERING)) {
@@ -176,13 +176,22 @@ class XiaomiWatchBridge(context: Context) : WatchBridge {
             } else {
                 NavStore.watchAppStatus = "已安装；正在打开"
                 nodeApi.launchWearApp(id, "/pages/index").addOnSuccessListener { main.post {
-                    if (gate.matches(attempt, Stage.READY)) NavStore.watchAppStatus = "已发送打开请求；等待手表回应"
+                    if (gate.matches(attempt, Stage.READY)) {
+                        NavStore.watchAppStatus = "已发送打开请求；等待手表回应"
+                        flush()
+                    }
                 } }.addOnFailureListener { error -> main.post {
-                    if (gate.matches(attempt, Stage.READY)) NavStore.watchAppStatus = "请手动打开 HY_WristNav：${detail(error)}"
+                    if (gate.matches(attempt, Stage.READY)) {
+                        NavStore.watchAppStatus = "请手动打开 HY_WristNav：${detail(error)}"
+                        flush()
+                    }
                 } }
             }
         } }.addOnFailureListener { error -> main.post {
-            if (gate.matches(attempt, Stage.READY)) NavStore.watchAppStatus = "安装检查失败，请手动打开：${detail(error)}"
+            if (gate.matches(attempt, Stage.READY)) {
+                NavStore.watchAppStatus = "安装检查失败，请手动打开：${detail(error)}"
+                flush()
+            }
         } }
         main.postDelayed({
             if (gate.matches(attempt, Stage.READY) && NavStore.lastHeartbeatMs == 0L)
