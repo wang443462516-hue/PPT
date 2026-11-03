@@ -6,10 +6,13 @@ on:
       - '.github/workflows/hy-delivery.yml'
 permissions:
   contents: read
+concurrency:
+  group: hy-wristnav-delivery
+  cancel-in-progress: false
 jobs:
   package:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -27,23 +30,52 @@ jobs:
         with:
           gradle-version: '8.9'
       - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Build and verify matched signing pair
-        run: bash HY_WristNav/tools/cloud-delivery.sh
+      - name: Compile and test before requesting signing material
+        working-directory: HY_WristNav
+        run: |
+          bash tools/fetch-xiaomi-sdk.sh
+          node tools/test-watch.cjs
+          cd android
+          gradle --no-daemon :app:testDebugUnitTest :app:assembleDebug
+      - name: Prepare temporary signing transport key
+        run: |
+          umask 077
+          mkdir -p "$RUNNER_TEMP/hy-signing"
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$RUNNER_TEMP/hy-signing/runner-private.pem" 2>/dev/null
+          openssl pkey -in "$RUNNER_TEMP/hy-signing/runner-private.pem" -pubout -out "$RUNNER_TEMP/hy-signing/runner-public.pem"
+      - name: Publish temporary public key
+        uses: actions/upload-artifact@v4
+        with:
+          name: HY-signing-public-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/hy-signing/runner-public.pem
+          retention-days: 1
+          if-no-files-found: error
+      - name: Restore original signing identity and build
+        env:
+          HY_SIGNING_DIR: ${{ runner.temp }}/hy-signing
+        run: |
+          bash HY_WristNav/tools/receive-signing.sh
+          bash HY_WristNav/tools/cloud-delivery.sh
       - name: Downloadable installation pair
         uses: actions/upload-artifact@v4
         with:
-          name: HY_WristNav-0.1.0-install
+          name: HY_WristNav-0.1.1-install
           path: |
             HY_WristNav/delivery/*.apk
             HY_WristNav/delivery/*.rpk
             HY_WristNav/delivery/*.txt
           if-no-files-found: error
           retention-days: 30
-      - name: Encrypted signing recovery (no plaintext private keys)
+      - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: HY_WristNav-signing-recovery
-          path: HY_WristNav/delivery/signing-backup.encrypted.json
+          name: HY-0.1.1-test-results
+          path: HY_WristNav/android/app/build/test-results/
           if-no-files-found: ignore
-          retention-days: 90
+          retention-days: 7
+      - name: Clear temporary signing material
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/hy-signing/runner-private.pem" "$RUNNER_TEMP/hy-signing/backup.tar.gz" "$RUNNER_TEMP/hy-signing/hy-wristnav.p12" "$RUNNER_TEMP/hy-signing/password.txt" "$RUNNER_TEMP/hy-signing/key-bag.pem"
+          rm -f HY_WristNav/watch/sign/debug/*.pem HY_WristNav/watch/sign/release/*.pem

@@ -26,6 +26,11 @@ object NavStore {
     @Volatile var lastSentSeq: Long = -1
     @Volatile var lastAck: Long = -1
     @Volatile var lastHeartbeatMs: Long = 0
+    @Volatile var deviceName = "未识别"
+    @Volatile var interconnectPermission = "待检查"
+    @Volatile var watchAppStatus = "未检查"
+    @Volatile var transportReady = false
+    @Volatile var notificationHint = "点击启动检查通知使用权"
     @Volatile var lastTransport: String = "正在初始化互联"
         private set
 

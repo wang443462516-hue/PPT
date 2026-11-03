@@ -11,6 +11,7 @@ class AmapNotificationListener : NotificationListenerService() {
     override fun onListenerConnected() {
         super.onListenerConnected()
         NavStore.health.connected = true
+        NavStore.notificationHint = "已连接，等待高德导航通知"
         NavStore.addLog("notification_listener_bound")
     }
 
@@ -18,6 +19,7 @@ class AmapNotificationListener : NotificationListenerService() {
         NavStore.health.connected = false
         NavStore.addLog("notification_listener_disconnected")
         super.onListenerDisconnected()
+        NotificationAccess.recover(this)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {

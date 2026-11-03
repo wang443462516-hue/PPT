@@ -48,10 +48,18 @@ coverage are not part of this candidate.
 
 Signing recovery uses an AES-GCM encrypted archive with an RSA-wrapped key.
 The recovery private key exists only in the local ignored .private directory.
-Preserve the recovery artifact and that key. Re-running the delivery workflow
-currently creates a new signing identity: do not install later runs as upgrades
-until the saved signing identity is restored. This limitation must be resolved
-before distributing subsequent versions.
+Preserve the recovery artifact and that key. Delivery now requires the original
+identity, pinned by certificate SHA-256, and never generates a replacement.
+The ephemeral GitHub runner publishes a temporary RSA public key artifact.
+The operator encrypts the recovered signing archive with tools/seal-signing.cjs,
+then commits only the encrypted envelope under
+signing-exchange/<run-id>-<attempt>.json within ten minutes. The runner decrypts
+it locally, builds, verifies the original certificate, and removes private material.
+Only data is read from the exchange commit; source stays at the tested build commit.
+
+Version 0.1.1 adds explicit start, DEVICE_MANAGER permission check/request before
+message registration, bounded retries, installation/launch checks, notification
+listener recovery and copyable diagnostics. See docs/0.1.1-真机测试.md.
 
 ## References
 
